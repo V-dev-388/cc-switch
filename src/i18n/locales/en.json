@@ -914,7 +914,8 @@
     "openclaw": "OpenClaw",
     "hermes": "Hermes",
     "pi": "Pi",
-    "dsh": "DSH"
+    "dsh": "DSH",
+    "zcode": "ZCode"
   },
   "pi": {
     "empty": {
@@ -1725,7 +1726,8 @@
       "opencode": "OpenCode",
       "grokbuild": "Grok Build",
       "pi": "Pi",
-      "dsh": "DSH"
+      "dsh": "DSH",
+      "zcode": "ZCode"
     },
     "rawInputLabel": "Raw",
     "sessionSync": {
