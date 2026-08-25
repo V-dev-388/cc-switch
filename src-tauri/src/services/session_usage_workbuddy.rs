@@ -985,4 +985,44 @@ mod tests {
         );
         Ok(())
     }
+
+    /// WorkBuddy rows carry the synthetic `_workbuddy_session` provider_id;
+    /// `provider_name_coalesce` must resolve it to a readable display name so
+    /// the dashboard's provider filter shows "WorkBuddy (Session)".
+    #[test]
+    fn placeholder_provider_resolves_to_workbuddy_session_display_name() -> Result<(), AppError> {
+        let db = Database::memory()?;
+        {
+            let conn = lock_conn!(db.conn);
+            conn.execute(
+                "INSERT INTO proxy_request_logs (
+                    request_id, provider_id, app_type, model, request_model,
+                    input_tokens, output_tokens, latency_ms, status_code,
+                    created_at, data_source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                rusqlite::params![
+                    "display-name-test",
+                    PROVIDER_PLACEHOLDER,
+                    APP_TYPE,
+                    "main-auto",
+                    "main-auto",
+                    10,
+                    5,
+                    0,
+                    200,
+                    1_787_362_690,
+                    DATA_SOURCE,
+                ],
+            )?;
+        }
+        let providers = db.get_provider_stats(None, None, Some(APP_TYPE), None, None)?;
+        assert!(
+            providers.iter().any(|provider| {
+                provider.provider_id == PROVIDER_PLACEHOLDER
+                    && provider.provider_name == "WorkBuddy (Session)"
+            }),
+            "_workbuddy_session 必须解析为 'WorkBuddy (Session)': {providers:?}"
+        );
+        Ok(())
+    }
 }

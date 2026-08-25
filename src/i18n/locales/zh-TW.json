@@ -916,7 +916,8 @@
     "hermes": "Hermes",
     "pi": "Pi",
     "dsh": "DSH",
-    "zcode": "ZCode"
+    "zcode": "ZCode",
+    "workbuddy": "WorkBuddy"
   },
   "pi": {
     "empty": {
@@ -1728,7 +1729,8 @@
       "grokbuild": "Grok Build",
       "pi": "Pi",
       "dsh": "DSH",
-      "zcode": "ZCode"
+      "zcode": "ZCode",
+      "workbuddy": "WorkBuddy"
     },
     "rawInputLabel": "原始",
     "sessionSync": {

@@ -81,6 +81,10 @@ const TITLE_THEMES: Record<AppType | "all", TitleTheme> = {
     accent: "text-indigo-600 dark:text-indigo-400",
     iconBg: "bg-indigo-500/10",
   },
+  workbuddy: {
+    accent: "text-blue-600 dark:text-blue-400",
+    iconBg: "bg-blue-500/10",
+  },
 };
 
 /**
