@@ -155,6 +155,11 @@ pub fn sync_all_unlocked(db: &Database) -> SessionSyncResult {
         "ZCode",
         crate::services::session_usage_zcode::sync_zcode_usage(db),
     );
+    merge_sync_step(
+        &mut result,
+        "WorkBuddy",
+        crate::services::session_usage_workbuddy::sync_workbuddy_usage(db),
+    );
     notify_sync_result(&result);
     result
 }
