@@ -127,7 +127,7 @@ pub fn sync_all_unlocked(db: &Database) -> SessionSyncResult {
     );
     merge_sync_step(
         &mut result,
-        "Gemini",
+        "Antigravity",
         crate::services::session_usage_gemini::sync_gemini_usage(db),
     );
     merge_sync_step(

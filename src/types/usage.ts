@@ -142,7 +142,7 @@ export interface LogFilters {
  * Dashboard 顶栏的全局筛选维度，作用于 Hero / 趋势图 / 三个统计 Tab。
  *
  * - `providerName` 按展示名精确匹配（与 Provider 统计列表同口径，含
- *   "Claude (Session)" 等会话占位名）；
+ *   "Claude (Session)", "Antigravity (Session)" 等会话占位名）；
  * - `model` 按「有效计价模型」匹配（pricing_model 优先、回落 model，
  *   与模型统计的分组口径一致）。
  */
