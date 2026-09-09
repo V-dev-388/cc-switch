@@ -142,3 +142,50 @@ pub fn remove_server_from_gemini(id: &str) -> Result<(), AppError> {
     // 写回
     crate::gemini_mcp::set_mcp_servers_map(&current)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_collect_enabled_servers_filters_disabled_and_invalid() {
+        let mut cfg = McpConfig::default();
+        cfg.servers.insert(
+            "active_srv".to_string(),
+            json!({
+                "enabled": true,
+                "server": {
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-filesystem"]
+                }
+            }),
+        );
+        cfg.servers.insert(
+            "disabled_srv".to_string(),
+            json!({
+                "enabled": false,
+                "server": {
+                    "command": "node",
+                    "args": ["server.js"]
+                }
+            }),
+        );
+        cfg.servers.insert(
+            "invalid_srv".to_string(),
+            json!({
+                "enabled": true
+                // Missing "server" field
+            }),
+        );
+
+        let enabled = collect_enabled_servers(&cfg);
+        assert_eq!(enabled.len(), 1);
+        assert!(enabled.contains_key("active_srv"));
+        assert!(!enabled.contains_key("disabled_srv"));
+        assert!(!enabled.contains_key("invalid_srv"));
+
+        let spec = &enabled["active_srv"];
+        assert_eq!(spec["command"], "npx");
+    }
+}
