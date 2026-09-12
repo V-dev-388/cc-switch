@@ -81,6 +81,14 @@ const TITLE_THEMES: Record<AppType | "all", TitleTheme> = {
     accent: "text-indigo-600 dark:text-indigo-400",
     iconBg: "bg-indigo-500/10",
   },
+  qoder: {
+    accent: "text-violet-600 dark:text-violet-400",
+    iconBg: "bg-violet-500/10",
+  },
+  qodercn: {
+    accent: "text-orange-600 dark:text-orange-400",
+    iconBg: "bg-orange-500/10",
+  },
   workbuddy: {
     accent: "text-blue-600 dark:text-blue-400",
     iconBg: "bg-blue-500/10",

@@ -75,6 +75,8 @@ const APP_FILTER_ICON: Record<AppType, string> = {
   grokbuild: "grok",
   opencode: "opencode",
   pi: "pi",
+  qoder: "qwen",
+  qodercn: "alibaba",
   workbuddy: "tencent",
   zcode: "zhipu",
 };

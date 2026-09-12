@@ -916,7 +916,9 @@
     "pi": "Pi",
     "dsh": "DSH",
     "zcode": "ZCode",
-    "workbuddy": "WorkBuddy"
+    "workbuddy": "WorkBuddy",
+    "qoder": "Qoder",
+    "qodercn": "QoderCN"
   },
   "pi": {
     "empty": {
@@ -1729,7 +1731,9 @@
       "pi": "Pi",
       "dsh": "DSH",
       "zcode": "ZCode",
-      "workbuddy": "WorkBuddy"
+      "workbuddy": "WorkBuddy",
+      "qoder": "Qoder",
+      "qodercn": "QoderCN"
     },
     "rawInputLabel": "原始",
     "sessionSync": {

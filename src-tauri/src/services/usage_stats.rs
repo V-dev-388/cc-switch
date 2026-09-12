@@ -221,6 +221,8 @@ fn provider_name_coalesce(log_alias: &str, provider_alias: &str) -> String {
          WHEN '_dsh_session' THEN 'DSH (Session)' \
          WHEN '_zcode_session' THEN 'ZCode (Session)' \
          WHEN '_workbuddy_session' THEN 'WorkBuddy (Session)' \
+         WHEN '_qoder_session' THEN 'Qoder (Session)' \
+         WHEN '_qodercn_session' THEN 'QoderCN (Session)' \
          ELSE {log_alias}.provider_id END)"
     )
 }

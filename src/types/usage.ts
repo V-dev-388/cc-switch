@@ -197,6 +197,8 @@ export type AppType =
   | "grokbuild"
   | "opencode"
   | "pi"
+  | "qoder"
+  | "qodercn"
   | "workbuddy"
   | "zcode";
 
@@ -210,6 +212,8 @@ export const KNOWN_APP_TYPES: ReadonlyArray<AppType> = [
   "grokbuild",
   "opencode",
   "pi",
+  "qoder",
+  "qodercn",
   "workbuddy",
   "zcode",
 ];
@@ -230,8 +234,9 @@ export const CACHE_INCLUSIVE_APP_TYPES: ReadonlySet<string> = new Set([
   "codex",
   "gemini",
   "grokbuild",
+  "qoder",
+  "qodercn",
   "workbuddy",
-  "zcode",
 ]);
 
 // Pi sessions can mix Anthropic and OpenAI APIs, but the dashboard aggregates

@@ -24,6 +24,8 @@ pub mod session_usage_gemini;
 pub mod session_usage_grokbuild;
 pub mod session_usage_opencode;
 pub mod session_usage_pi;
+pub mod session_usage_qoder;
+pub mod session_usage_qodercn;
 pub mod session_usage_workbuddy;
 pub mod session_usage_zcode;
 pub mod skill;

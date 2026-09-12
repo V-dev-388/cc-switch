@@ -160,6 +160,16 @@ pub fn sync_all_unlocked(db: &Database) -> SessionSyncResult {
         "WorkBuddy",
         crate::services::session_usage_workbuddy::sync_workbuddy_usage(db),
     );
+    merge_sync_step(
+        &mut result,
+        "Qoder",
+        crate::services::session_usage_qoder::sync_qoder_usage(db),
+    );
+    merge_sync_step(
+        &mut result,
+        "QoderCN",
+        crate::services::session_usage_qodercn::sync_qodercn_usage(db),
+    );
     notify_sync_result(&result);
     result
 }
