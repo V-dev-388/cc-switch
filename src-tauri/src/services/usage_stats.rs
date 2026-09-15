@@ -221,6 +221,7 @@ fn provider_name_coalesce(log_alias: &str, provider_alias: &str) -> String {
          WHEN '_dsh_session' THEN 'DSH (Session)' \
          WHEN '_zcode_session' THEN 'ZCode (Session)' \
          WHEN '_workbuddy_session' THEN 'WorkBuddy (Session)' \
+         WHEN '_codebuddy_session' THEN 'CodeBuddy (Session)' \
          WHEN '_qoder_session' THEN 'Qoder (Session)' \
          WHEN '_qodercn_session' THEN 'QoderCN (Session)' \
          ELSE {log_alias}.provider_id END)"
@@ -260,7 +261,11 @@ fn dedup_app_type_match_sql(left: &str, right: &str) -> String {
 /// app_type 本就不是主访问路径，可接受。仅用于读侧；跨源去重使用更窄的
 /// [`dedup_app_type_match_sql`]，额度检查（`check_provider_limits`）仍保留原始精确比较。
 fn folded_app_type_sql(column: &str) -> String {
-    format!("CASE WHEN {column} = 'claude-desktop' THEN 'claude' ELSE {column} END")
+    format!(
+        "CASE WHEN {column} = 'claude-desktop' THEN 'claude' \
+         WHEN {column} = 'workbuddy' THEN 'codebuddy' \
+         ELSE {column} END"
+    )
 }
 
 /// SQL 片段：把日志/汇总行 LEFT JOIN 到 providers 表以取得供应商名称。
@@ -2629,6 +2634,66 @@ mod tests {
         // ④ 折叠不外溢：codex 过滤为空。
         let codex_summary = db.get_usage_summary(None, None, Some("codex"), None, None)?;
         assert_eq!(codex_summary.total_requests, 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_workbuddy_folded_into_codebuddy() -> Result<(), AppError> {
+        let db = Database::memory()?;
+        {
+            let conn = lock_conn!(db.conn);
+            insert_usage_log(
+                &conn,
+                "cb-1",
+                "codebuddy",
+                "_codebuddy_session",
+                "glm-5.3",
+                "codebuddy_session",
+                1000,
+                100,
+                20,
+                0,
+                0,
+                200,
+                "0.0",
+            )?;
+            insert_usage_log(
+                &conn,
+                "wb-1",
+                "workbuddy",
+                "_workbuddy_session",
+                "Hy3",
+                "workbuddy_session",
+                1000,
+                200,
+                30,
+                0,
+                0,
+                200,
+                "0.0",
+            )?;
+        }
+
+        let by_app = db.get_usage_summary_by_app(None, None, None, None)?;
+        assert_eq!(by_app.len(), 1, "workbuddy 应合并进 codebuddy 桶");
+        assert_eq!(by_app[0].app_type, "codebuddy");
+        assert_eq!(by_app[0].summary.total_requests, 2);
+
+        let cb_summary = db.get_usage_summary(None, None, Some("codebuddy"), None, None)?;
+        assert_eq!(cb_summary.total_requests, 2);
+
+        let logs = db.get_request_logs(
+            &LogFilters {
+                app_type: Some("codebuddy".to_string()),
+                ..Default::default()
+            },
+            0,
+            50,
+        )?;
+        assert_eq!(logs.total, 2);
+        assert!(logs.data.iter().any(|r| r.app_type == "workbuddy"));
+        assert!(logs.data.iter().any(|r| r.app_type == "codebuddy"));
 
         Ok(())
     }

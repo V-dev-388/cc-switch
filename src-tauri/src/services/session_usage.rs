@@ -162,6 +162,11 @@ pub fn sync_all_unlocked(db: &Database) -> SessionSyncResult {
     );
     merge_sync_step(
         &mut result,
+        "CodeBuddy",
+        crate::services::session_usage_codebuddy::sync_codebuddy_usage(db),
+    );
+    merge_sync_step(
+        &mut result,
         "Qoder",
         crate::services::session_usage_qoder::sync_qoder_usage(db),
     );

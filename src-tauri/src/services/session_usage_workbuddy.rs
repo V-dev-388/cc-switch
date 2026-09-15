@@ -72,27 +72,50 @@ struct ExtractedUsage {
     cached_tokens: i64,
 }
 
-/// Import usage from every WorkBuddy trace file. A missing traces directory
-/// simply means there is nothing to import yet.
+/// Import usage from every WorkBuddy and WorkBuddy-Air trace file. A missing
+/// traces directory simply means there is nothing to import yet.
 pub fn sync_workbuddy_usage(db: &Database) -> Result<SessionSyncResult, AppError> {
-    let traces_dir = workbuddy_traces_dir();
-    Ok(sync_workbuddy_traces_dir(db, &traces_dir))
-}
-
-/// Resolve the WorkBuddy traces root. `WORKBUDDY_DATA_DIR` overrides the
-/// `.workbuddy` base (tests use tempdirs instead); when unset the importer
-/// reads `dirs::home_dir()/.workbuddy/traces`.
-fn workbuddy_traces_dir() -> PathBuf {
-    if let Some(custom) = std::env::var_os("WORKBUDDY_DATA_DIR") {
-        let trimmed = custom.to_string_lossy().trim().to_string();
-        if !trimmed.is_empty() {
-            return PathBuf::from(trimmed).join("traces");
+    let mut result = SessionSyncResult::default();
+    let dirs = workbuddy_traces_dirs();
+    for dir in dirs {
+        if dir.exists() {
+            result.merge(sync_workbuddy_traces_dir(db, &dir));
         }
     }
-    dirs::home_dir()
-        .unwrap_or_default()
-        .join(".workbuddy")
-        .join("traces")
+    Ok(result)
+}
+
+/// Resolve the WorkBuddy and WorkBuddy-Air traces roots.
+/// `WORKBUDDY_DATA_DIR` overrides the `.workbuddy` base; `WORKBUDDY_AIR_DATA_DIR`
+/// overrides the `.workbuddy-air` base. In test mode (when `WORKBUDDY_DATA_DIR`
+/// is set), host directories are never accessed. In production, both
+/// `~/.workbuddy/traces` and `~/.workbuddy-air/traces` are scanned.
+fn workbuddy_traces_dirs() -> Vec<PathBuf> {
+    if let Some(custom) = std::env::var_os("WORKBUDDY_DATA_DIR") {
+        let mut dirs = Vec::new();
+        let trimmed = custom.to_string_lossy().trim().to_string();
+        if !trimmed.is_empty() {
+            dirs.push(PathBuf::from(trimmed).join("traces"));
+        }
+        if let Some(air_custom) = std::env::var_os("WORKBUDDY_AIR_DATA_DIR") {
+            let air_trimmed = air_custom.to_string_lossy().trim().to_string();
+            if !air_trimmed.is_empty() {
+                dirs.push(PathBuf::from(air_trimmed).join("traces"));
+            }
+        }
+        return dirs;
+    }
+
+    let home = dirs::home_dir().unwrap_or_default();
+    let mut dirs = vec![home.join(".workbuddy").join("traces")];
+    let air_dir = if let Some(air_custom) = std::env::var_os("WORKBUDDY_AIR_DATA_DIR") {
+        let air_trimmed = air_custom.to_string_lossy().trim().to_string();
+        PathBuf::from(air_trimmed).join("traces")
+    } else {
+        home.join(".workbuddy-air").join("traces")
+    };
+    dirs.push(air_dir);
+    dirs
 }
 
 /// Path-injectable core: `traces_dir` is the directory whose `*/trace_*.json`
@@ -318,21 +341,45 @@ fn find_usage_object(value: &serde_json::Value) -> Option<ExtractedUsage> {
     None
 }
 
-/// Extract the model name from `span.toolInput` using the regex
-/// `powered by ([A-Za-z0-9.-]+)`. Falls back to the first entry in
-/// `trace.modelInfo.models`, then to `"unknown"`.
+/// Extract the model name with anti-"the" filtering:
+/// 1. Priority 1: `The exact model ID is ([A-Za-z0-9.-]+)` from `toolInput`
+/// 2. Priority 2: `powered by ([A-Za-z0-9.-]+)` from `toolInput` (discarding "the")
+/// 3. Priority 3: `model_info_models[0]`
+/// 4. Fallback: `"unknown"`
+///
+/// Trailing full stops are trimmed to prevent sentence punctuation from polluting the model name.
 fn extract_model(tool_input_str: &str, model_info_models: &[String]) -> String {
-    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let re =
-        RE.get_or_init(|| regex::Regex::new(r"powered by ([A-Za-z0-9.-]+)").expect("valid regex"));
-    if let Some(caps) = re.captures(tool_input_str) {
+    static RE_EXACT: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re_exact = RE_EXACT.get_or_init(|| {
+        regex::Regex::new(r"The exact model ID is ([A-Za-z0-9.-]+)").expect("valid regex")
+    });
+    if let Some(caps) = re_exact.captures(tool_input_str) {
         if let Some(m) = caps.get(1) {
-            return m.as_str().to_string();
+            let candidate = m.as_str().trim_end_matches('.');
+            if !candidate.is_empty() && !candidate.eq_ignore_ascii_case("the") {
+                return candidate.to_string();
+            }
         }
     }
-    if let Some(first) = model_info_models.first() {
-        return first.clone();
+
+    static RE_POWERED: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re_powered = RE_POWERED
+        .get_or_init(|| regex::Regex::new(r"powered by ([A-Za-z0-9.-]+)").expect("valid regex"));
+    if let Some(caps) = re_powered.captures(tool_input_str) {
+        if let Some(m) = caps.get(1) {
+            let candidate = m.as_str().trim_end_matches('.');
+            if !candidate.is_empty() && !candidate.eq_ignore_ascii_case("the") {
+                return candidate.to_string();
+            }
+        }
     }
+
+    if let Some(first) = model_info_models.first() {
+        if !first.is_empty() {
+            return first.clone();
+        }
+    }
+
     "unknown".to_string()
 }
 
@@ -1002,6 +1049,7 @@ mod tests {
     fn workbuddy_step_is_registered_in_sync_all_unlocked() -> Result<(), AppError> {
         let _guard = workbuddy_env_lock().lock().expect("env lock");
         let temp = tempfile::tempdir().expect("tempdir");
+        let temp_cb = tempfile::tempdir().expect("tempdir cb");
         let trace = make_trace(
             "trace_registered",
             "sess-registered",
@@ -1016,12 +1064,18 @@ mod tests {
         write_trace_file(temp.path(), "registered-dir", "registered", &trace);
 
         let original = std::env::var_os("WORKBUDDY_DATA_DIR");
+        let original_cb = std::env::var_os("CODEBUDDY_DATA_DIR");
         std::env::set_var("WORKBUDDY_DATA_DIR", temp.path());
+        std::env::set_var("CODEBUDDY_DATA_DIR", temp_cb.path());
         let db = Database::memory().expect("memory db");
         let result = crate::services::session_usage::sync_all_unlocked(&db);
         match original {
             Some(value) => std::env::set_var("WORKBUDDY_DATA_DIR", value),
             None => std::env::remove_var("WORKBUDDY_DATA_DIR"),
+        }
+        match original_cb {
+            Some(value) => std::env::set_var("CODEBUDDY_DATA_DIR", value),
+            None => std::env::remove_var("CODEBUDDY_DATA_DIR"),
         }
 
         let count: i64 = lock_conn!(db.conn).query_row(
@@ -1081,5 +1135,102 @@ mod tests {
             "_workbuddy_session 必须解析为 'WorkBuddy (Session)': {providers:?}"
         );
         Ok(())
+    }
+
+    // ── Test 13: WorkBuddy Air directory scanning and merging ──
+
+    #[test]
+    #[allow(deprecated)]
+    fn air_directory_scanned_and_merged_with_workbuddy() -> Result<(), AppError> {
+        let _guard = workbuddy_env_lock().lock().expect("env lock");
+        let temp_wb = tempfile::tempdir().expect("tempdir wb");
+        let temp_air = tempfile::tempdir().expect("tempdir air");
+
+        let trace_wb = make_trace(
+            "trace_wb_001",
+            "sess-wb",
+            &["deepseek-v4-flash"],
+            &[(
+                "generation",
+                "ok",
+                TOOL_INPUT_POWERED,
+                TOOL_OUTPUT_WITH_USAGE,
+            )],
+        );
+        write_trace_file(temp_wb.path(), "sub-wb", "wb001", &trace_wb);
+
+        let trace_air = make_trace(
+            "trace_air_001",
+            "sess-air",
+            &["deepseek-v4-flash"],
+            &[(
+                "generation",
+                "ok",
+                TOOL_INPUT_POWERED,
+                TOOL_OUTPUT_WITH_USAGE,
+            )],
+        );
+        write_trace_file(temp_air.path(), "sub-air", "air001", &trace_air);
+
+        let orig_wb = std::env::var_os("WORKBUDDY_DATA_DIR");
+        let orig_air = std::env::var_os("WORKBUDDY_AIR_DATA_DIR");
+
+        std::env::set_var("WORKBUDDY_DATA_DIR", temp_wb.path());
+        std::env::set_var("WORKBUDDY_AIR_DATA_DIR", temp_air.path());
+
+        let db = Database::memory().expect("memory db");
+        let result = sync_workbuddy_usage(&db);
+
+        match orig_wb {
+            Some(v) => std::env::set_var("WORKBUDDY_DATA_DIR", v),
+            None => std::env::remove_var("WORKBUDDY_DATA_DIR"),
+        }
+        match orig_air {
+            Some(v) => std::env::set_var("WORKBUDDY_AIR_DATA_DIR", v),
+            None => std::env::remove_var("WORKBUDDY_AIR_DATA_DIR"),
+        }
+
+        let sync_res = result.expect("sync_workbuddy_usage succeeds");
+        assert_eq!(
+            sync_res.files_scanned, 2,
+            "scanned 1 wb file and 1 air file"
+        );
+        assert_eq!(
+            sync_res.imported, 2,
+            "imported both wb and air generation spans"
+        );
+        assert_eq!(sync_res.skipped, 0);
+
+        let count: i64 = lock_conn!(db.conn).query_row(
+            "SELECT COUNT(*) FROM proxy_request_logs WHERE app_type = 'workbuddy'",
+            [],
+            |r| r.get(0),
+        )?;
+        assert_eq!(count, 2, "both rows stored under app_type = 'workbuddy'");
+
+        Ok(())
+    }
+
+    // ── Test 14: model extraction anti-the and exact model priority ──
+
+    #[test]
+    fn model_extraction_anti_the_and_exact_priority() {
+        let models = vec!["glm-5.1".to_string()];
+
+        // Priority 1: Exact model ID
+        let input_exact =
+            "<codebuddy_background_info>\nThe exact model ID is hy3.\n</codebuddy_background_info>";
+        assert_eq!(extract_model(input_exact, &models), "hy3");
+
+        // Priority 2 with "the" -> must reject "the" and fall back to modelInfo
+        let input_the = "You are an assistant powered by the model";
+        assert_eq!(extract_model(input_the, &models), "glm-5.1");
+
+        // Priority 2 with valid model
+        let input_valid = "You are an assistant powered by minimax-m3";
+        assert_eq!(extract_model(input_valid, &models), "minimax-m3");
+
+        // Fallback to unknown when modelInfo is empty
+        assert_eq!(extract_model(input_the, &[]), "unknown");
     }
 }

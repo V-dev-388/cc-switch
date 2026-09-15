@@ -51,6 +51,10 @@ const TITLE_THEMES: Record<AppType | "all", TitleTheme> = {
     accent: "text-amber-600 dark:text-amber-400",
     iconBg: "bg-amber-500/10",
   },
+  codebuddy: {
+    accent: "text-cyan-600 dark:text-cyan-400",
+    iconBg: "bg-cyan-500/10",
+  },
   codex: {
     // OpenAI/Codex 走黑白单色调；中性灰在深浅模式都能透出方块底色，
     // 不像纯黑 bg-black/10 在深色背景下会糊掉。
@@ -88,10 +92,6 @@ const TITLE_THEMES: Record<AppType | "all", TitleTheme> = {
   qodercn: {
     accent: "text-orange-600 dark:text-orange-400",
     iconBg: "bg-orange-500/10",
-  },
-  workbuddy: {
-    accent: "text-blue-600 dark:text-blue-400",
-    iconBg: "bg-blue-500/10",
   },
 };
 

@@ -918,6 +918,7 @@
     "dsh": "DSH",
     "zcode": "ZCode",
     "workbuddy": "WorkBuddy",
+    "codebuddy": "CodeBuddy",
     "qoder": "Qoder",
     "qodercn": "QoderCN"
   },
@@ -1733,6 +1734,7 @@
       "dsh": "DSH",
       "zcode": "ZCode",
       "workbuddy": "WorkBuddy",
+      "codebuddy": "CodeBuddy",
       "qoder": "Qoder",
       "qodercn": "QoderCN"
     },

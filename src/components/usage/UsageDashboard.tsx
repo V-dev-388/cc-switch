@@ -69,6 +69,7 @@ const normalizeRefreshInterval = (value: number | undefined) =>
 // 与 AppSwitcher 的 appIconName 保持一致（codex 复用 openai 图标）
 const APP_FILTER_ICON: Record<AppType, string> = {
   claude: "claude",
+  codebuddy: "tencent",
   codex: "openai",
   dsh: "deepseek",
   gemini: "gemini",
@@ -77,7 +78,6 @@ const APP_FILTER_ICON: Record<AppType, string> = {
   pi: "pi",
   qoder: "qwen",
   qodercn: "alibaba",
-  workbuddy: "tencent",
   zcode: "zhipu",
 };
 

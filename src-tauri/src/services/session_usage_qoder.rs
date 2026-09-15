@@ -603,7 +603,10 @@ mod tests {
 
         // Touch file mtime and sync again: re-reads file, deduplication skips row
         std::thread::sleep(std::time::Duration::from_millis(20));
-        let mut file = fs::OpenOptions::new().append(true).open(&jsonl_file).unwrap();
+        let mut file = fs::OpenOptions::new()
+            .append(true)
+            .open(&jsonl_file)
+            .unwrap();
         writeln!(file).unwrap();
         drop(file);
 

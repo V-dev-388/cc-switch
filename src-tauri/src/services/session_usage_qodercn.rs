@@ -328,27 +328,29 @@ pub(crate) fn sync_qodercn_ide_db(
             message_id: None,
         };
 
-        let pricing_opt = find_model_pricing(&tx, model)
-            .or_else(|| find_model_pricing(&tx, &model_key));
-        let (input_cost, output_cost, cache_read_cost, cache_write_cost, total_cost) = match pricing_opt {
-            Some(pricing) => {
-                let calc = CostCalculator::calculate_for_app(APP_TYPE, &usage, &pricing, Decimal::ONE);
-                (
-                    calc.input_cost,
-                    calc.output_cost,
-                    calc.cache_read_cost,
-                    calc.cache_creation_cost,
-                    calc.total_cost,
-                )
-            }
-            None => (
-                Decimal::ZERO,
-                Decimal::ZERO,
-                Decimal::ZERO,
-                Decimal::ZERO,
-                Decimal::ZERO,
-            ),
-        };
+        let pricing_opt =
+            find_model_pricing(&tx, model).or_else(|| find_model_pricing(&tx, &model_key));
+        let (input_cost, output_cost, cache_read_cost, cache_write_cost, total_cost) =
+            match pricing_opt {
+                Some(pricing) => {
+                    let calc =
+                        CostCalculator::calculate_for_app(APP_TYPE, &usage, &pricing, Decimal::ONE);
+                    (
+                        calc.input_cost,
+                        calc.output_cost,
+                        calc.cache_read_cost,
+                        calc.cache_creation_cost,
+                        calc.total_cost,
+                    )
+                }
+                None => (
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+            };
 
         tx.execute(
             "INSERT OR IGNORE INTO proxy_request_logs (
@@ -561,11 +563,7 @@ fn sync_single_qodercn_file(
     Ok(result)
 }
 
-fn qodercn_file_unchanged(
-    db: &Database,
-    file_path: &str,
-    modified: i64,
-) -> Result<bool, AppError> {
+fn qodercn_file_unchanged(db: &Database, file_path: &str, modified: i64) -> Result<bool, AppError> {
     let conn = lock_conn!(db.conn);
     let last_modified: Option<i64> = conn
         .query_row(
@@ -979,11 +977,7 @@ mod tests {
                 "content": "1234567890123456789012345678901234567890123456789012345678901234567890"
             }
         });
-        fs::write(
-            &jsonl_file,
-            format!("{}\n{}\n", user_line, assistant_line),
-        )
-        .unwrap();
+        fs::write(&jsonl_file, format!("{}\n{}\n", user_line, assistant_line)).unwrap();
 
         let db = Database::memory()?;
         {
@@ -1104,7 +1098,10 @@ mod tests {
 
         // Touch file -> re-reads, dedup skips
         std::thread::sleep(std::time::Duration::from_millis(20));
-        let mut f = fs::OpenOptions::new().append(true).open(&jsonl_file).unwrap();
+        let mut f = fs::OpenOptions::new()
+            .append(true)
+            .open(&jsonl_file)
+            .unwrap();
         writeln!(f).unwrap();
         drop(f);
 
@@ -1226,11 +1223,7 @@ mod tests {
             "message": { "model": "dfmodel", "content": "123456789012345678901" } // 21 chars -> 6 tokens
         });
 
-        fs::write(
-            &jsonl_file,
-            format!("{}\n{}\n{}\n{}\n", u1, a1, u2, a2),
-        )
-        .unwrap();
+        fs::write(&jsonl_file, format!("{}\n{}\n{}\n{}\n", u1, a1, u2, a2)).unwrap();
 
         let db = Database::memory()?;
         let res = sync_qodercn_usage(&db)?;

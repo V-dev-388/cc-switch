@@ -177,35 +177,16 @@ export interface UsageRangeSelection {
  * App types surfaced as dashboard filter buttons.
  *
  * `claude-desktop` is intentionally NOT listed: the Desktop gateway's proxy
- * traffic is still recorded under its own `app_type` (preserving route-takeover
- * billing audit — the request detail panel shows the real value), but the
- * dashboard folds it into `claude` for display. It is the embedded Claude Code
- * runtime running inside the Desktop shell, and Desktop *chat* usage never
- * passes through this app at all, so a separate "Claude Desktop" bucket would
- * only ever show a partial number and mislead users into reading it as the
- * Desktop's full usage. The backend collapses `claude-desktop → claude` in
- * every dashboard query (see `folded_app_type_sql`).
+ * `claude-desktop` and `workbuddy` are deliberately omitted from the tab list:
+ * - Claude Desktop embedded runtime traffic is folded into `claude` (see `folded_app_type_sql`).
+ * - WorkBuddy (desktop assistant) session traces are folded into `codebuddy` (CodeBuddy CN IDE) for unified display.
  * `opencode` and `pi` have no proxy handler; their usage reaches this
  * dashboard through session importers. `openclaw` / `hermes` appear only as
  * managed apps elsewhere.
  */
-export type AppType =
-  | "claude"
-  | "codex"
-  | "dsh"
-  | "gemini"
-  | "grokbuild"
-  | "opencode"
-  | "pi"
-  | "qoder"
-  | "qodercn"
-  | "workbuddy"
-  | "zcode";
-
-export type AppTypeFilter = "all" | AppType;
-
-export const KNOWN_APP_TYPES: ReadonlyArray<AppType> = [
+export const KNOWN_APP_TYPES = [
   "claude",
+  "codebuddy",
   "codex",
   "dsh",
   "gemini",
@@ -214,9 +195,12 @@ export const KNOWN_APP_TYPES: ReadonlyArray<AppType> = [
   "pi",
   "qoder",
   "qodercn",
-  "workbuddy",
   "zcode",
-];
+] as const;
+
+export type AppType = (typeof KNOWN_APP_TYPES)[number];
+
+export type AppTypeFilter = "all" | AppType;
 
 /**
  * App types whose proxy uses an OpenAI-style protocol. Two consequences:
@@ -231,6 +215,7 @@ export const KNOWN_APP_TYPES: ReadonlyArray<AppType> = [
  * Mirror of the Rust `CACHE_INCLUSIVE_APP_TYPES` whitelist.
  */
 export const CACHE_INCLUSIVE_APP_TYPES: ReadonlySet<string> = new Set([
+  "codebuddy",
   "codex",
   "gemini",
   "grokbuild",
