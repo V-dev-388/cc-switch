@@ -53,6 +53,7 @@ struct CodeBuddyUsageRecord {
     input_tokens: i64,
     output_tokens: i64,
     cache_read_tokens: i64,
+    cache_creation_tokens: i64,
     session_id: String,
     created_at: i64,
 }
@@ -62,6 +63,7 @@ struct ExtractedUsage {
     prompt_tokens: i64,
     completion_tokens: i64,
     cached_tokens: i64,
+    cache_write_tokens: i64,
 }
 
 /// Import usage from CodeBuddy trace files and CodeBuddy CN IDE logs.
@@ -240,6 +242,7 @@ fn sync_single_trace_file(db: &Database, file_path: &Path) -> Result<SessionSync
                 input_tokens: usage.prompt_tokens,
                 output_tokens: usage.completion_tokens,
                 cache_read_tokens: usage.cached_tokens,
+                cache_creation_tokens: usage.cache_write_tokens,
                 session_id: session_id.to_string(),
                 created_at: created_at.clamp(MIN_SQLITE_UNIX_SECONDS, MAX_SQLITE_UNIX_SECONDS),
             };
@@ -656,6 +659,13 @@ fn sync_single_codebuddy_cn_log_file(
                 .or_else(|| usage_val.get("cachedTokens"))
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
+            let cache_creation_tokens = usage_val
+                .get("cachedWriteTokens")
+                .or_else(|| usage_val.get("cacheWriteTokens"))
+                .or_else(|| usage_val.get("cacheCreationTokens"))
+                .or_else(|| usage_val.get("cachedCreationTokens"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
 
             let step_num = re_step_num
                 .captures(&line)
@@ -686,7 +696,7 @@ fn sync_single_codebuddy_cn_log_file(
                 }
             }
 
-            if input_tokens == 0 && output_tokens == 0 && cache_read_tokens == 0 {
+            if input_tokens == 0 && output_tokens == 0 && cache_read_tokens == 0 && cache_creation_tokens == 0 {
                 let total_tokens = usage_val
                     .get("totalTokens")
                     .and_then(|v| v.as_i64())
@@ -743,6 +753,7 @@ fn sync_single_codebuddy_cn_log_file(
                 input_tokens,
                 output_tokens,
                 cache_read_tokens,
+                cache_creation_tokens,
                 session_id,
                 created_at: created_at.clamp(MIN_SQLITE_UNIX_SECONDS, MAX_SQLITE_UNIX_SECONDS),
             };
@@ -798,10 +809,21 @@ fn find_usage_object(value: &serde_json::Value) -> Option<ExtractedUsage> {
                 .and_then(|d| d.get("cached_tokens"))
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
+            let cache_write_tokens = obj
+                .get("prompt_tokens_details")
+                .and_then(|d| {
+                    d.get("cache_write_tokens")
+                        .or_else(|| d.get("cache_creation_tokens"))
+                        .or_else(|| d.get("cachedWriteTokens"))
+                        .or_else(|| d.get("cacheCreationTokens"))
+                })
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
             return Some(ExtractedUsage {
                 prompt_tokens,
                 completion_tokens,
                 cached_tokens,
+                cache_write_tokens,
             });
         }
         for (_, v) in obj {
@@ -966,7 +988,7 @@ fn insert_codebuddy_record(
         input_tokens: record.input_tokens.max(0).min(u32::MAX as i64) as u32,
         output_tokens: record.output_tokens.max(0).min(u32::MAX as i64) as u32,
         cache_read_tokens: record.cache_read_tokens.max(0).min(u32::MAX as i64) as u32,
-        cache_creation_tokens: 0,
+        cache_creation_tokens: record.cache_creation_tokens.max(0).min(u32::MAX as i64) as u32,
         model: Some(record.model.clone()),
         message_id: None,
     };
@@ -1013,7 +1035,7 @@ fn insert_codebuddy_record(
             record.input_tokens,
             record.output_tokens,
             record.cache_read_tokens,
-            0i64,
+            record.cache_creation_tokens,
             INPUT_TOKEN_SEMANTICS_TOTAL,
             input_cost.to_string(),
             output_cost.to_string(),
@@ -1112,6 +1134,7 @@ mod tests {
                 "total_tokens": 15975,
                 "prompt_tokens_details": {
                     "cached_tokens": 10368,
+                    "cache_write_tokens": 512,
                     "reasoning_tokens": 0
                 },
                 "completion_tokens_details": {
@@ -1213,7 +1236,7 @@ mod tests {
         assert_eq!(row.6, 15874, "input_tokens prompt_tokens");
         assert_eq!(row.7, 101, "output_tokens completion_tokens");
         assert_eq!(row.8, 10368, "cache_read_tokens");
-        assert_eq!(row.9, 0, "cache_creation_tokens must be 0");
+        assert_eq!(row.9, 512, "cache_creation_tokens must be 512");
         assert_eq!(row.10, 1, "input_token_semantics must be 1 (TOTAL)");
         assert_eq!(row.11, 200, "status_code must be 200");
         assert_eq!(row.12, "sess-cb-100", "session_id");
@@ -1614,7 +1637,7 @@ mod tests {
         let log_content = "\
 [2026/9/14 14:16:25.216] [Info] [CraftInvokableAgent] [a98608e347b92d426390511bd3644fee]  Preparing model: glm-5.3 (custom-local:glm-5.3)
 [2026/9/14 14:16:25.236] [Info] [AgentReporter] conversationId: conv_cb_cn_1, requestId: req_cb_cn_1, traceId: a98608e347b92d426390511bd3644fee
-[2026/9/14 14:16:48.699] [Info] [BaseAgent:craft] [req_cb_cn_1]  notifyStepEnd, step: 1, requestId: req_cb_cn_1, messageId: msg_cb_cn_1, usage: {\"inputTokens\":9741,\"outputTokens\":120,\"totalTokens\":9861,\"cacheTokens\":256,\"cachedWriteTokens\":0,\"cachedMissTokens\":0,\"lastTokens\":9741,\"credit\":0,\"thinkingTokens\":0}, isMaxTokenLimit: false, isMaxStepLimit: false
+[2026/9/14 14:16:48.699] [Info] [BaseAgent:craft] [req_cb_cn_1]  notifyStepEnd, step: 1, requestId: req_cb_cn_1, messageId: msg_cb_cn_1, usage: {\"inputTokens\":9741,\"outputTokens\":120,\"totalTokens\":9861,\"cacheTokens\":256,\"cachedWriteTokens\":500,\"cachedMissTokens\":0,\"lastTokens\":9741,\"credit\":0,\"thinkingTokens\":0}, isMaxTokenLimit: false, isMaxStepLimit: false
 ";
         std::fs::write(&log_path, log_content).expect("write log file");
 
@@ -1685,7 +1708,7 @@ mod tests {
         assert_eq!(row.6, 9741, "input_tokens");
         assert_eq!(row.7, 120, "output_tokens");
         assert_eq!(row.8, 256, "cache_read_tokens");
-        assert_eq!(row.9, 0, "cache_creation_tokens must be 0");
+        assert_eq!(row.9, 500, "cache_creation_tokens must be 500");
         assert_eq!(row.10, 1, "input_token_semantics must be 1 (TOTAL)");
         assert_eq!(row.11, 200, "status_code must be 200");
         assert_eq!(row.12, "conv_cb_cn_1", "session_id");

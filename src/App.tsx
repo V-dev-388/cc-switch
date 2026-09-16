@@ -547,7 +547,11 @@ function App() {
     const checkEnvOnStartup = async () => {
       try {
         const allConflicts = await checkAllEnvConflicts();
-        const flatConflicts = Object.values(allConflicts).flat();
+        const flatConflicts = Object.values(allConflicts)
+          .flat()
+          .filter(
+            (c) => typeof c.varValue === "string" && c.varValue.trim().length > 0,
+          );
 
         if (flatConflicts.length > 0) {
           setEnvConflicts(flatConflicts);
@@ -1242,7 +1246,12 @@ function App() {
           onDeleted={async () => {
             try {
               const allConflicts = await checkAllEnvConflicts();
-              const flatConflicts = Object.values(allConflicts).flat();
+              const flatConflicts = Object.values(allConflicts)
+                .flat()
+                .filter(
+                  (c) =>
+                    typeof c.varValue === "string" && c.varValue.trim().length > 0,
+                );
               setEnvConflicts(flatConflicts);
               if (flatConflicts.length === 0) {
                 setShowEnvBanner(false);

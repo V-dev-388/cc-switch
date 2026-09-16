@@ -236,16 +236,17 @@ export type CacheWriteAvailability = "ok" | "partial" | "na";
 
 export function getCacheWriteAvailability(
   appTypes: readonly string[],
+  isAll: boolean = false,
 ): CacheWriteAvailability {
   if (appTypes.length === 0) return "ok";
   const unavailable = appTypes.filter((appType) =>
     CACHE_INCLUSIVE_APP_TYPES.has(appType),
   ).length;
-  if (unavailable === appTypes.length) return "na";
-  const partial = appTypes.some((appType) =>
-    PARTIAL_CACHE_WRITE_APP_TYPES.has(appType),
-  );
-  return unavailable === 0 && !partial ? "ok" : "partial";
+  if (!isAll && unavailable === appTypes.length) return "na";
+  const partial =
+    unavailable > 0 ||
+    appTypes.some((appType) => PARTIAL_CACHE_WRITE_APP_TYPES.has(appType));
+  return partial ? "partial" : "ok";
 }
 
 /** Subset of request-log fields needed to derive cache-normalized input. */

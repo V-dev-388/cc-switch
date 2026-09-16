@@ -70,10 +70,11 @@ fn check_system_env(keywords: &[EnvKeyword]) -> Result<Vec<EnvConflict>, String>
     // Check HKEY_CURRENT_USER\Environment
     if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER).open_subkey("Environment") {
         for (name, value) in hkcu.enum_values().filter_map(Result::ok) {
-            if matches_env_keyword(&name, keywords) {
+            let val_str = value.to_string();
+            if !val_str.trim().is_empty() && matches_env_keyword(&name, keywords) {
                 conflicts.push(EnvConflict {
                     var_name: name.clone(),
-                    var_value: value.to_string(),
+                    var_value: val_str,
                     source_type: "system".to_string(),
                     source_path: "HKEY_CURRENT_USER\\Environment".to_string(),
                 });
@@ -86,10 +87,11 @@ fn check_system_env(keywords: &[EnvKeyword]) -> Result<Vec<EnvConflict>, String>
         .open_subkey("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment")
     {
         for (name, value) in hklm.enum_values().filter_map(Result::ok) {
-            if matches_env_keyword(&name, keywords) {
+            let val_str = value.to_string();
+            if !val_str.trim().is_empty() && matches_env_keyword(&name, keywords) {
                 conflicts.push(EnvConflict {
                     var_name: name.clone(),
-                    var_value: value.to_string(),
+                    var_value: val_str,
                     source_type: "system".to_string(),
                     source_path: "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment".to_string(),
                 });
@@ -104,9 +106,9 @@ fn check_system_env(keywords: &[EnvKeyword]) -> Result<Vec<EnvConflict>, String>
 fn check_system_env(keywords: &[EnvKeyword]) -> Result<Vec<EnvConflict>, String> {
     let mut conflicts = Vec::new();
 
-    // Check current process environment
+    // Check current process environment (ignore empty or whitespace-only variables)
     for (key, value) in std::env::vars() {
-        if matches_env_keyword(&key, keywords) {
+        if !value.trim().is_empty() && matches_env_keyword(&key, keywords) {
             conflicts.push(EnvConflict {
                 var_name: key,
                 var_value: value,
@@ -150,15 +152,16 @@ fn check_shell_configs(keywords: &[EnvKeyword]) -> Result<Vec<EnvConflict>, Stri
                     if let Some(eq_pos) = export_line.find('=') {
                         let var_name = export_line[..eq_pos].trim();
                         let var_value = export_line[eq_pos + 1..].trim();
+                        let clean_val = var_value
+                            .trim_matches('"')
+                            .trim_matches('\'')
+                            .trim();
 
-                        // Check if variable name contains any keyword
-                        if matches_env_keyword(var_name, keywords) {
+                        // Check if variable name contains any keyword and value is non-empty
+                        if !clean_val.is_empty() && matches_env_keyword(var_name, keywords) {
                             conflicts.push(EnvConflict {
                                 var_name: var_name.to_string(),
-                                var_value: var_value
-                                    .trim_matches('"')
-                                    .trim_matches('\'')
-                                    .to_string(),
+                                var_value: clean_val.to_string(),
                                 source_type: "file".to_string(),
                                 source_path: format!("{}:{}", file_path, line_num + 1),
                             });
@@ -231,5 +234,19 @@ mod tests {
         assert!(matches_env_keyword("anthropic_base_url", &keywords));
         assert!(!matches_env_keyword("MY_ANTHROPIC_API_KEY", &keywords));
         assert!(!matches_env_keyword("NOT_ANTHROPIC", &keywords));
+    }
+
+    #[test]
+    fn ignore_empty_or_whitespace_env_vars() {
+        let keywords = get_keywords_for_app("claude");
+        assert!(matches_env_keyword("ANTHROPIC_API_KEY", &keywords));
+
+        // Empty or whitespace strings should be rejected
+        let empty_val = "";
+        let whitespace_val = "   \t\n";
+        let valid_val = "sk-ant-api03-xxx";
+        assert!(empty_val.trim().is_empty());
+        assert!(whitespace_val.trim().is_empty());
+        assert!(!valid_val.trim().is_empty());
     }
 }

@@ -34,7 +34,11 @@ export function EnvWarningBanner({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  if (conflicts.length === 0) {
+  const activeConflicts = conflicts.filter(
+    (c) => typeof c.varValue === "string" && c.varValue.trim().length > 0,
+  );
+
+  if (activeConflicts.length === 0) {
     return null;
   }
 
@@ -49,11 +53,11 @@ export function EnvWarningBanner({
   };
 
   const toggleSelectAll = () => {
-    if (selectedConflicts.size === conflicts.length) {
+    if (selectedConflicts.size === activeConflicts.length) {
       setSelectedConflicts(new Set());
     } else {
       setSelectedConflicts(
-        new Set(conflicts.map((c) => `${c.varName}:${c.sourcePath}`)),
+        new Set(activeConflicts.map((c) => `${c.varName}:${c.sourcePath}`)),
       );
     }
   };
@@ -63,7 +67,7 @@ export function EnvWarningBanner({
     setIsDeleting(true);
 
     try {
-      const conflictsToDelete = conflicts.filter((c) =>
+      const conflictsToDelete = activeConflicts.filter((c) =>
         selectedConflicts.has(`${c.varName}:${c.sourcePath}`),
       );
 
@@ -123,7 +127,7 @@ export function EnvWarningBanner({
                     {t("env.warning.title")}
                   </h3>
                   <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-0.5">
-                    {t("env.warning.description", { count: conflicts.length })}
+                    {t("env.warning.description", { count: activeConflicts.length })}
                   </p>
                 </div>
 
@@ -163,7 +167,7 @@ export function EnvWarningBanner({
                   <div className="flex items-center gap-2 pb-2 border-b border-yellow-200 dark:border-yellow-900/50">
                     <Checkbox
                       id="select-all"
-                      checked={selectedConflicts.size === conflicts.length}
+                      checked={selectedConflicts.size === activeConflicts.length}
                       onCheckedChange={toggleSelectAll}
                     />
                     <label
@@ -175,7 +179,7 @@ export function EnvWarningBanner({
                   </div>
 
                   <div className="max-h-96 overflow-y-auto space-y-2">
-                    {conflicts.map((conflict) => {
+                    {activeConflicts.map((conflict) => {
                       const key = `${conflict.varName}:${conflict.sourcePath}`;
                       return (
                         <div

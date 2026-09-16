@@ -142,7 +142,11 @@ fn delete_single_env(conflict: &EnvConflict) -> Result<(), String> {
             Ok(())
         }
         "system" => {
-            // On Unix, we can't directly delete process environment variables
+            // On Unix, remove from current process environment
+            #[allow(unused_unsafe)]
+            unsafe {
+                std::env::remove_var(&conflict.var_name);
+            }
             Ok(())
         }
         _ => Err(format!("未知的环境变量来源类型: {}", conflict.source_type)),

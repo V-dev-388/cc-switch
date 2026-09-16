@@ -46,6 +46,7 @@ struct DshUsageRecord {
     input_tokens: u32,
     output_tokens: u32,
     cache_read_tokens: u32,
+    cache_creation_tokens: u32,
     created_at: i64,
     session_id: String,
 }
@@ -271,6 +272,14 @@ fn parse_usage_record(
     let input_tokens = token_count(usage, "inputTokens");
     let output_tokens = token_count(usage, "outputTokens");
     let cache_read_tokens = token_count(usage, "cacheReadTokens");
+    let cache_creation_tokens = usage
+        .get("cacheCreationTokens")
+        .or_else(|| usage.get("cacheWriteTokens"))
+        .or_else(|| usage.get("cache_creation_tokens"))
+        .or_else(|| usage.get("cache_write_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0)
+        .min(u32::MAX as u64) as u32;
 
     let source = data.pointer("/message/source");
     let provider_id = source
@@ -304,6 +313,7 @@ fn parse_usage_record(
         input_tokens,
         output_tokens,
         cache_read_tokens,
+        cache_creation_tokens,
         created_at,
         session_id: session_id.to_string(),
     })
@@ -354,7 +364,7 @@ fn insert_dsh_record(
         input_tokens: record.input_tokens,
         output_tokens: record.output_tokens,
         cache_read_tokens: record.cache_read_tokens,
-        cache_creation_tokens: 0,
+        cache_creation_tokens: record.cache_creation_tokens,
         model: Some(record.model.clone()),
         message_id: None,
     };
@@ -401,7 +411,7 @@ fn insert_dsh_record(
             record.input_tokens,
             record.output_tokens,
             record.cache_read_tokens,
-            0i64,
+            record.cache_creation_tokens as i64,
             INPUT_TOKEN_SEMANTICS_FRESH,
             input_cost.to_string(),
             output_cost.to_string(),
@@ -682,4 +692,41 @@ mod tests {
         assert_eq!(count, 2);
         Ok(())
     }
+
+    #[test]
+    fn imports_usage_events_with_cache_write_and_creation_tokens() -> Result<(), AppError> {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = session_file(temp.path(), "--work--", "session-cache-write");
+        write_zstd_session(
+            &path,
+            &[
+                session_header("session-cache-write"),
+                r#"{"type":"assistant/message","seq":1,"time":1786678145825,"data":{"turn":1,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"ok"}],"source":{"kind":"model","provider":"stepfun-plan","model":"step-3.7-flash"}},"usage":{"inputTokens":1000,"outputTokens":100,"cacheReadTokens":50,"cacheCreationTokens":500}}}"#.to_string(),
+                r#"{"type":"assistant/message","seq":2,"time":1786678148978,"data":{"turn":1,"step":2,"message":{"role":"assistant","content":[{"type":"text","text":"ok"}],"source":{"kind":"model","provider":"stepfun-plan","model":"step-3.7-flash"}},"usage":{"inputTokens":2000,"outputTokens":200,"cacheReadTokens":60,"cacheWriteTokens":600}}}"#.to_string(),
+            ],
+        );
+
+        let db = Database::memory()?;
+        let result = sync_dsh_files(&db, std::slice::from_ref(&path));
+        assert_eq!(result.imported, 2);
+        assert!(result.errors.is_empty());
+
+        let conn = lock_conn!(db.conn);
+        let creation_1: i64 = conn.query_row(
+            "SELECT cache_creation_tokens FROM proxy_request_logs WHERE request_id = 'dsh:session-cache-write:1'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(creation_1, 500, "cacheCreationTokens must be parsed");
+
+        let creation_2: i64 = conn.query_row(
+            "SELECT cache_creation_tokens FROM proxy_request_logs WHERE request_id = 'dsh:session-cache-write:2'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(creation_2, 600, "cacheWriteTokens must be parsed");
+
+        Ok(())
+    }
 }
+

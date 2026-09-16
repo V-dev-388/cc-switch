@@ -13,7 +13,12 @@ import type { EnvConflict, BackupInfo } from "@/types/env";
 export async function checkEnvConflicts(
   appType: string,
 ): Promise<EnvConflict[]> {
-  return invoke<EnvConflict[]>("check_env_conflicts", { app: appType });
+  const conflicts = await invoke<EnvConflict[]>("check_env_conflicts", {
+    app: appType,
+  });
+  return (conflicts || []).filter(
+    (c) => typeof c.varValue === "string" && c.varValue.trim().length > 0,
+  );
 }
 
 /**
