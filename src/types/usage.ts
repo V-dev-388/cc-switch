@@ -224,25 +224,32 @@ export const CACHE_INCLUSIVE_APP_TYPES: ReadonlySet<string> = new Set([
   "workbuddy",
 ]);
 
-// Pi sessions can mix Anthropic and OpenAI APIs, but the dashboard aggregates
-// only by app type. Treat cache-write coverage as partial without changing
-// Pi's fresh-input token semantics. DSH logs never report cache writes.
-const PARTIAL_CACHE_WRITE_APP_TYPES: ReadonlySet<string> = new Set([
-  "pi",
+/**
+ * App types whose session logs or upstream protocols never report cache creation/writes.
+ * - OpenAI protocol apps (codex, grokbuild, qoder, qodercn, codebuddy, workbuddy)
+ * - Gemini (Google API does not return cache creation tokens)
+ * - DSH (DSH session logs only report inputTokens, outputTokens, cacheReadTokens)
+ */
+export const NO_CACHE_WRITE_APP_TYPES: ReadonlySet<string> = new Set([
+  ...CACHE_INCLUSIVE_APP_TYPES,
   "dsh",
+]);
+
+// Pi sessions can mix Anthropic and OpenAI APIs, so cache-write coverage is partial.
+export const PARTIAL_CACHE_WRITE_APP_TYPES: ReadonlySet<string> = new Set([
+  "pi",
 ]);
 
 export type CacheWriteAvailability = "ok" | "partial" | "na";
 
 export function getCacheWriteAvailability(
   appTypes: readonly string[],
-  isAll: boolean = false,
 ): CacheWriteAvailability {
   if (appTypes.length === 0) return "ok";
   const unavailable = appTypes.filter((appType) =>
-    CACHE_INCLUSIVE_APP_TYPES.has(appType),
+    NO_CACHE_WRITE_APP_TYPES.has(appType),
   ).length;
-  if (!isAll && unavailable === appTypes.length) return "na";
+  if (unavailable === appTypes.length) return "na";
   const partial =
     unavailable > 0 ||
     appTypes.some((appType) => PARTIAL_CACHE_WRITE_APP_TYPES.has(appType));

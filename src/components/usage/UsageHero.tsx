@@ -199,12 +199,9 @@ export function UsageHero({
   const appLabel =
     appType && appType in TITLE_THEMES ? t(`usage.appFilter.${appType}`) : null;
 
-  const rawCacheWriteState = getCacheWriteAvailability(
+  const cacheWriteState = getCacheWriteAvailability(
     appType ? [appType] : allApps.map((a) => a.appType),
-    !appType,
   );
-  const cacheWriteState =
-    !appType && rawCacheWriteState === "na" ? "partial" : rawCacheWriteState;
 
   const input = summary?.totalInputTokens ?? 0;
   const output = summary?.totalOutputTokens ?? 0;
@@ -223,12 +220,12 @@ export function UsageHero({
     tooltip: showNA
       ? t(
           "usage.cacheWriteNotReported",
-          "OpenAI 协议不区分缓存写入，仅上报缓存命中",
+          "当前协议不区分缓存写入，仅上报缓存命中，写入已并入新增输入",
         )
       : cacheWriteState === "partial" || (cacheWriteState === "na" && cacheWrite > 0)
         ? t(
             "usage.cacheWritePartial",
-            "部分协议（如 OpenAI）不上报缓存写入，数值可能偏低",
+            "部分协议（如 OpenAI、Gemini）不上报缓存写入，数值可能偏低",
           )
         : undefined,
   };

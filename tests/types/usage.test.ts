@@ -6,14 +6,19 @@ describe("getCacheWriteAvailability", () => {
     expect(getCacheWriteAvailability(["claude"])).toBe("ok");
     expect(getCacheWriteAvailability(["pi"])).toBe("partial");
     expect(getCacheWriteAvailability(["codex", "gemini"])).toBe("na");
+    expect(getCacheWriteAvailability(["dsh"])).toBe("na");
     expect(getCacheWriteAvailability(["claude", "codex"])).toBe("partial");
+    expect(getCacheWriteAvailability(["claude", "dsh"])).toBe("partial");
     expect(getCacheWriteAvailability([])).toBe("ok");
   });
 
-  it("never returns na in all-apps view", () => {
-    expect(getCacheWriteAvailability(["codex", "gemini"], true)).not.toBe("na");
-    expect(getCacheWriteAvailability(["codex", "gemini"], true)).toBe("partial");
-    expect(getCacheWriteAvailability(["claude"], true)).toBe("ok");
-    expect(getCacheWriteAvailability([], true)).toBe("ok");
+  it("returns na when all active apps do not report cache creation", () => {
+    expect(
+      getCacheWriteAvailability(["codex", "gemini", "dsh", "codebuddy", "qodercn"]),
+    ).toBe("na");
+  });
+
+  it("returns partial when some active apps report cache creation and others do not", () => {
+    expect(getCacheWriteAvailability(["claude", "gemini", "dsh"])).toBe("partial");
   });
 });
