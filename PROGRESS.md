@@ -16,8 +16,11 @@
   - `session_usage_codebuddy.rs`：在 `notifyStepEnd` 中提取 `cachedWriteTokens`，在 trace `toolOutput` 的 `prompt_tokens_details` 中提取 `cache_write_tokens`，填入 `record.cache_creation_tokens`，修复已有断言 `cache_creation_tokens must be 0`。
   - `session_usage_dsh.rs`：支持解析 `cacheCreationTokens` / `cacheWriteTokens` 并存入 `proxy_request_logs` 的 `cache_creation_tokens`，补充单测。
   - 单测反向验证已完成（红：构造 `cachedWriteTokens: 500` 未提取时 `assert_eq!(row.9, 500)` 报 `left: 0, right: 500` FAIL；绿：提取后 15 passed 全绿）。
-  - `cargo test --lib services::session_usage_dsh` 6 个单测全绿。
 - [x] 任务 3：修复空环境变量误报冲突与白屏问题
   - 根除白屏：使用官方标准 `tauri build -b app` 打包完整生产 Bundle 并安装签名，杜绝单二进制编译导致的 `dev` 模式连接 localhost:3000。
   - 根除冲突误报：`env_checker.rs` 增加对空值与空白变量的过滤（Unix 进程环境、Shell 配置文件及 Windows 注册表）；`env_manager.rs` 支持 Unix 下删除进程环境变量；前端 `api/env.ts`、`App.tsx`、`EnvWarningBanner.tsx` 全链路增加非空防御并补充单测 `EnvWarningBanner.test.tsx`。
-
+- [x] 任务 4：落地方案 A（无缓存创建指标的协议展示 N/A，支持协议如 Claude 展示统计值）并完成打包安装
+  - `src/types/usage.ts`：增加 `NO_CACHE_WRITE_APP_TYPES` 定义，`getCacheWriteAvailability` 当过滤选中的应用全为不支持缓存写入协议且 `cacheWrite === 0` 时返回 `"na"`。
+  - `src/components/usage/UsageHero.tsx`：当 `cacheWriteState === "na" && cacheWrite === 0` 时展示 `N/A`（带说明 tooltip），大于 0 时展示统计数字。
+  - `src/i18n/locales/*.json`：多语言补充协议特性说明提示词（OpenAI/Gemini/DSH 缓存写入已计入输入且上游未单独提供创建统计）。
+  - 打包与签名安装：`pnpm tauri build --bundles app` 成功完成 Release 打包，覆盖安装到 `/Applications/CC Switch.app` 并完成 `codesign --force --deep -s -` 深度签名。
